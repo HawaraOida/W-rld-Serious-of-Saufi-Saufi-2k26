@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wörld Serious of Saufi Saufi</title>
     
-    <!-- 1. Tailwind CSS für das Design -->
+    <!-- 1. Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- 2. WICHTIG: Die UMD-Version der Supabase Bibliothek -->
+    <!-- 2. Supabase Bibliothek -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     
     <!-- 3. Favicon -->
@@ -36,7 +36,7 @@
                 <div>
                     <h1 class="text-lg font-bold leading-tight">Wörld Serious of Saufi Saufi - VuiBlattlympics 2k26</h1>
                     <p class="text-[10px] text-emerald-100 leading-snug mt-1 max-w-md opacity-90">
-                        Wörld Serious of Saufi Saufi - VuiBlattlympics 2k26 is des official Megaevent für olle, de liaba vui blattln statt trainiern.
+                        Official Megaevent für olle, de liaba vui blattln statt trainiern.
                     </p>
                 </div>
             </div>
@@ -67,8 +67,8 @@
 
     <script>
         const K_FACTOR = 32;
-        const SUPABASE_URL = 'https://tbeupewhdgcyxugxsfjd.supabase.co'; // <-- HIER ERSETZEN!
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRiZXVwZXdoZGdjeXh1Z3hzZmpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM3NDY4NzIsImV4cCI6MjA3OTMyMjg3Mn0.hqICv1Yy4spdJa6sKZSnDXQL2r0sCHlBg3CL1DE10BU'; // <-- HIER ERSETZEN!
+        const SUPABASE_URL = 'https://tbeupewhdgcyxugxsfjd.supabase.co'; 
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRiZXVwZXdoZGdjeXh1Z3hzZmpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM3NDY4NzIsImV4cCI6MjA3OTMyMjg3Mn0.hqICv1Yy4spdJa6sKZSnDXQL2r0sCHlBg3CL1DE10BU';
         
         let sbClient = null;
 
@@ -84,7 +84,9 @@
                 history: [],
                 activeTab: 'rank',
                 matchInputs: Array(8).fill(''),
-                winnerMode: 0 
+                winnerMode: 0,
+                // HIER kannst du die Bild-URL für das Bild unter der History ändern
+                footerImageUrl: 'https://images.unsplash.com/photo-1597075095400-b210064971da?auto=format&fit=crop&q=80&w=800' 
             },
 
             init() {
@@ -96,7 +98,6 @@
 
             async fetchData() {
                 try {
-                    // Spieler laden
                     let { data: players, error: playersError } = await sbClient
                         .from('players')
                         .select('*')
@@ -104,7 +105,6 @@
 
                     if (playersError) throw playersError;
 
-                    // History laden - Sortiert nach match_id absteigend
                     let { data: history, error: historyError } = await sbClient
                         .from('history')
                         .select('*')
@@ -136,17 +136,12 @@
 
             async saveData(newHistoryEntry) {
                 try {
-                    // Spieler updaten (Delete & Re-Insert Pattern aus Original übernommen)
                     await sbClient.from('players').delete().neq('id', 'deleted');
                     const { error: insertPlayersError } = await sbClient.from('players').insert(this.data.players);
                     if (insertPlayersError) throw insertPlayersError;
 
-                    // History Eintrag speichern
                     if (newHistoryEntry) {
-                        // Wir berechnen eine match_id basierend auf der aktuellen Länge
-                        // Sicherer wäre ein Auto-Increment in Supabase, aber wir folgen der Logik
                         const nextId = this.data.history.length + 1;
-                        
                         const { error: insertHistoryError } = await sbClient
                             .from('history')
                             .insert([{
@@ -201,7 +196,6 @@
                 activeIds.forEach(id => eloDeltas[id] = 0);
                 const playersMap = new Map(this.data.players.map(p => [p.id, {...p}]));
 
-                // ELO Berechnung
                 for (let i = 0; i < activeIds.length; i++) {
                     const pA = playersMap.get(activeIds[i]);
                     for (let j = i + 1; j < activeIds.length; j++) {
@@ -210,8 +204,6 @@
                         const expB = this.getExpectation(pB.elo, pA.elo);
 
                         let scoreA = (this.data.winnerMode === 1) ? (i === 0 ? 1 : 0) : (i < j ? 1 : 0);
-                        
-                        // Im Winner Takes All Modus werden nur Vergleiche mit dem Gewinner gewertet
                         if (this.data.winnerMode === 1 && i !== 0) continue;
 
                         eloDeltas[activeIds[i]] += K_FACTOR * (scoreA - expA);
@@ -243,13 +235,12 @@
                 
                 try {
                     await this.saveData(newHistoryEntry);
-                    // Nach Speichern Daten neu laden um korrekte IDs und Sortierung zu haben
                     await this.fetchData();
                     this.data.matchInputs = Array(8).fill('');
                     this.data.activeTab = 'rank';
                     this.render();
                 } catch (e) {
-                    alert("Fehler beim Speichern! Bitte prüfen Sie die Datenbank-Struktur (match_id, match_name).");
+                    alert("Fehler beim Speichern!");
                     if(btn) btn.innerText = "Berechnen & Speichern";
                 }
             },
@@ -272,8 +263,6 @@
 
             render() {
                 const container = document.getElementById('app-content');
-                
-                // Nav Styles
                 ['rank', 'match', 'settings'].forEach(t => {
                     const btn = document.getElementById(`btn-${t}`);
                     if(btn) btn.className = this.data.activeTab === t 
@@ -303,8 +292,11 @@
                 });
                 html += `</tbody></table></div>`;
 
-                html += `<h3 class="text-xs font-bold text-slate-400 uppercase mb-3 ml-1">Letzte Matches (Absteigend)</h3><div class="space-y-3">`;
-                if(this.data.history.length === 0) html += `<p class="text-center text-sm text-slate-400 italic py-4">Keine Spiele bisher.</p>`;
+                html += `<h3 class="text-xs font-bold text-slate-400 uppercase mb-3 ml-1">Letzte Matches</h3><div class="space-y-3 mb-8">`;
+                
+                if(this.data.history.length === 0) {
+                    html += `<p class="text-center text-sm text-slate-400 italic py-4">Keine Spiele bisher.</p>`;
+                }
                 
                 this.data.history.forEach(m => {
                     const namesHtml = m.ranking.map((rid, idx) => {
@@ -325,7 +317,22 @@
                             <div class="flex flex-wrap gap-1 mt-2">${namesHtml}</div>
                         </div>`;
                 });
-                container.innerHTML = html + `</div>`;
+                
+                // DAS BILD UNTER DER HISTORY
+                html += `</div>
+                    <div class="mt-8 mb-4">
+                        <div class="bg-white p-2 rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+                            <img src="${this.data.footerImageUrl}" 
+                                 alt="Event Bild" 
+                                 class="w-full h-auto rounded-md object-cover"
+                                 onerror="this.parentElement.style.display='none'">
+                            <div class="p-2 text-center">
+                                <p class="text-[10px] text-slate-400 italic uppercase tracking-widest">Saufi Saufi 2026 Memorial</p>
+                            </div>
+                        </div>
+                    </div>`;
+
+                container.innerHTML = html;
             },
 
             renderMatch(container) {
@@ -343,7 +350,7 @@
                         </div>
                         <div class="mb-4">
                             <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Match Name</label>
-                            <input type="text" id="input-match-name" class="w-full p-2 border rounded text-sm outline-none focus:border-emerald-500 bg-slate-50" placeholder="z.B. Halbfinale">
+                            <input type="text" id="input-match-name" class="w-full p-2 border rounded text-sm outline-none focus:border-emerald-500 bg-slate-50" placeholder="z.B. Stammtisch-Runde">
                         </div>
                         <div class="space-y-3 mb-6">`;
                 
@@ -365,18 +372,41 @@
             },
 
             renderSettings(container) {
-                let html = `<div class="bg-white rounded-lg shadow p-5"><h2 class="font-bold mb-4">Spieler Namen</h2><div class="space-y-3 mb-6">`;
+                let html = `
+                    <div class="bg-white rounded-lg shadow p-5">
+                        <h2 class="font-bold mb-4">Einstellungen</h2>
+                        
+                        <div class="mb-8">
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Spieler Namen</label>
+                            <div class="space-y-3">`;
+                
                 this.data.players.forEach((p, i) => {
                     html += `<div class="flex items-center gap-2">
                         <span class="text-xs text-slate-400 w-4">${i+1}</span>
                         <input type="text" value="${p.name}" onchange="app.updatePlayerName('${p.id}', this.value)" class="flex-1 p-2 border rounded text-sm focus:border-emerald-500 outline-none">
                     </div>`;
                 });
-                container.innerHTML = html + `</div><div class="border-t pt-4 mt-4 text-center"><button onclick="app.resetData()" class="text-red-500 text-xs hover:underline">⚠️ Datenbank zurücksetzen</button></div></div>`;
+                
+                html += `</div></div>
+                        
+                        <div class="border-t pt-4">
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Footer Bild URL</label>
+                            <input type="text" value="${this.data.footerImageUrl}" 
+                                   onchange="app.data.footerImageUrl = this.value; app.render();" 
+                                   class="w-full p-2 border rounded text-sm focus:border-emerald-500 outline-none bg-slate-50"
+                                   placeholder="Bild URL hier einfügen...">
+                            <p class="text-[10px] text-slate-400 mt-1">Füge hier den Link zu einem Bild ein, das unter der Rangliste erscheinen soll.</p>
+                        </div>
+
+                        <div class="border-t pt-4 mt-8 text-center">
+                            <button onclick="app.resetData()" class="text-red-500 text-xs hover:underline">⚠️ Datenbank zurücksetzen</button>
+                        </div>
+                    </div>`;
+                container.innerHTML = html;
             },
 
             async resetData() {
-                if(confirm("Alle Daten löschen?")) {
+                if(confirm("Alle Daten unwiderruflich löschen?")) {
                     await sbClient.from('players').delete().neq('id', 'deleted');
                     await sbClient.from('history').delete().neq('match_id', 0);
                     location.reload();
@@ -392,4 +422,3 @@
     </script>
 </body>
 </html>
-
