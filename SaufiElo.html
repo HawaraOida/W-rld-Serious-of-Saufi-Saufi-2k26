@@ -39,7 +39,7 @@
                 </svg>
                 <div>
                     <h1 class="text-lg font-bold leading-tight">Wörld Serious of Saufi Saufi - VuiBlattlympics 2k26</h1>
-                    <p class="text-[10px] text-emerald-100 leading-snug mt-1 max-w-md opacity-90 uppercase tracking-wider font-bold">
+                    <p class="text-[10px] text-emerald-100 leading-snug mt-1 max-w-md opacity-90 uppercase tracking-wider font-normal">
                         Wörld Serious of Saufi Saufi - VuiBlattlympics 2k26 is des official Megaevent für olle, de liaba vui blattln statt trainiern. Kämpft werd net nur um Elo, sondern um'n heiligen Waundapokal zum Ausasaufn.
                     </p>
                 </div>
@@ -175,6 +175,7 @@
 
             updateMatchInput(index, value) {
                 this.data.matchInputs[index] = value;
+                this.render(); // Sofort neu rendern um Validierung anzuzeigen
             },
 
             updatePlayerName(id, newName) {
@@ -194,7 +195,7 @@
                 const activeIds = this.data.matchInputs.filter(id => id !== "");
 
                 if (activeIds.length < 2) return alert("Mindestens 2 Spieler nötig!");
-                if (new Set(activeIds).size !== activeIds.length) return alert("Spieler doppelt ausgewählt!");
+                if (new Set(activeIds).size !== activeIds.length) return alert("Spieler dürfen nicht doppelt ausgewählt werden!");
 
                 const eloDeltas = {};
                 activeIds.forEach(id => eloDeltas[id] = 0);
@@ -443,27 +444,36 @@
 
                         <div class="mb-6">
                             <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Match Bezeichnung</label>
-                            <input type="text" id="input-match-name" class="w-full p-3 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 border-slate-200" placeholder="z.B. Kneipentour #4">
+                            <input type="text" id="input-match-name" class="w-full p-3 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 border-slate-200" placeholder="z.B. Emma treiben">
                         </div>
 
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-3">Ranking (1. bis 8. Platz)</label>
                         <div class="space-y-2.5 mb-8">`;
                 
+                const currentInputs = this.data.matchInputs;
+                const duplicates = currentInputs.filter((id, index) => id !== "" && currentInputs.indexOf(id) !== index);
+
                 for(let i=0; i<8; i++) {
+                    const isDuplicate = currentInputs[i] !== "" && currentInputs.filter(id => id === currentInputs[i]).length > 1;
                     let options = `<option value="">-- Nicht teilgenommen --</option>`;
                     this.data.players.forEach(p => {
-                        const selected = this.data.matchInputs[i] === p.id ? 'selected' : '';
+                        const selected = currentInputs[i] === p.id ? 'selected' : '';
                         options += `<option value="${p.id}" ${selected}>${p.name} (${Math.round(p.elo)})</option>`;
                     });
                     html += `
-                        <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${i===0 ? 'bg-yellow-400 text-yellow-900 border-2 border-yellow-200' : 'bg-slate-100 text-slate-400'}">${i+1}</div>
-                            <select onchange="app.updateMatchInput(${i}, this.value)" class="flex-1 p-2.5 border rounded-lg bg-white text-sm outline-none focus:border-emerald-500 border-slate-200">
-                                ${options}
-                            </select>
+                        <div>
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${i===0 ? 'bg-yellow-400 text-yellow-900 border-2 border-yellow-200' : 'bg-slate-100 text-slate-400'}">${i+1}</div>
+                                <select onchange="app.updateMatchInput(${i}, this.value)" class="flex-1 p-2.5 border rounded-lg bg-white text-sm outline-none transition-colors ${isDuplicate ? 'border-red-500 bg-red-50 focus:border-red-600' : 'border-slate-200 focus:border-emerald-500'}">
+                                    ${options}
+                                </select>
+                            </div>
+                            ${isDuplicate ? `<p class="text-[10px] text-red-500 ml-11 mt-1 font-bold">⚠️ Spieler bereits ausgewählt!</p>` : ''}
                         </div>`;
                 }
-                container.innerHTML = html + `</div><button id="submit-btn" onclick="app.submitMatch()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl transition-all shadow-xl active:scale-[0.98]">Match berechnen & speichern 🍻</button></div>`;
+
+                const hasDuplicates = duplicates.length > 0;
+                container.innerHTML = html + `</div><button id="submit-btn" onclick="app.submitMatch()" ${hasDuplicates ? 'disabled' : ''} class="w-full ${hasDuplicates ? 'bg-slate-300 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 shadow-xl active:scale-[0.98]'} text-white font-bold py-4 rounded-xl transition-all">Match berechnen & speichern 🍻</button></div>`;
             },
 
             renderSettings(container) {
