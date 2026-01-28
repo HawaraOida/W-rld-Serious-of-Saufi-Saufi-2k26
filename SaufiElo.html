@@ -22,6 +22,8 @@
         .fade-in { animation: fadeIn 0.2s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         canvas { max-width: 100% !important; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 pb-20">
@@ -175,14 +177,14 @@
 
             updateMatchInput(index, value) {
                 this.data.matchInputs[index] = value;
-                this.render(); // Sofort neu rendern um Validierung anzuzeigen
+                this.render(); 
             },
 
-            updatePlayerName(id, newName) {
+            async updatePlayerName(id, newName) {
                 const p = this.data.players.find(pl => pl.id === id);
                 if(p) {
                     p.name = newName;
-                    sbClient.from('players').update({name: newName}).eq('id', id);
+                    await sbClient.from('players').update({name: newName}).eq('id', id);
                 }
             },
 
@@ -194,8 +196,8 @@
                 const matchName = document.getElementById('input-match-name')?.value.trim() || '';
                 const activeIds = this.data.matchInputs.filter(id => id !== "");
 
-                if (activeIds.length < 2) return alert("Mindestens 2 Spieler nötig!");
-                if (new Set(activeIds).size !== activeIds.length) return alert("Spieler dürfen nicht doppelt ausgewählt werden!");
+                if (activeIds.length < 2) return;
+                if (new Set(activeIds).size !== activeIds.length) return;
 
                 const eloDeltas = {};
                 activeIds.forEach(id => eloDeltas[id] = 0);
@@ -236,7 +238,10 @@
                 };
 
                 const btn = document.getElementById('submit-btn');
-                if(btn) btn.innerText = "Speichere...";
+                if(btn) {
+                    btn.innerText = "Speichere...";
+                    btn.disabled = true;
+                }
                 
                 try {
                     await this.saveData(newHistoryEntry);
@@ -245,8 +250,11 @@
                     this.data.activeTab = 'rank';
                     this.render();
                 } catch (e) {
-                    alert("Fehler beim Speichern!");
-                    if(btn) btn.innerText = "Berechnen & Speichern";
+                    console.error(e);
+                    if(btn) {
+                        btn.innerText = "Berechnen & Speichern";
+                        btn.disabled = false;
+                    }
                 }
             },
 
@@ -311,12 +319,12 @@
                         maintainAspectRatio: false,
                         interaction: { intersect: false, mode: 'index' },
                         plugins: {
-                            legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 }, usePointStyle: true } },
+                            legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 9 }, usePointStyle: true } },
                             tooltip: { backgroundColor: 'rgba(0,0,0,0.8)', padding: 10 }
                         },
                         scales: {
-                            y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } },
-                            x: { grid: { display: false }, ticks: { font: { size: 10 } } }
+                            y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 9 } } },
+                            x: { grid: { display: false }, ticks: { font: { size: 9 } } }
                         }
                     }
                 });
@@ -473,7 +481,10 @@
                 }
 
                 const hasDuplicates = duplicates.length > 0;
-                container.innerHTML = html + `</div><button id="submit-btn" onclick="app.submitMatch()" ${hasDuplicates ? 'disabled' : ''} class="w-full ${hasDuplicates ? 'bg-slate-300 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 shadow-xl active:scale-[0.98]'} text-white font-bold py-4 rounded-xl transition-all">Match berechnen & speichern 🍻</button></div>`;
+                const activeCount = currentInputs.filter(id => id !== "").length;
+                const canSubmit = !hasDuplicates && activeCount >= 2;
+
+                container.innerHTML = html + `</div><button id="submit-btn" onclick="app.submitMatch()" ${!canSubmit ? 'disabled' : ''} class="w-full ${!canSubmit ? 'bg-slate-300 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 shadow-xl active:scale-[0.98]'} text-white font-bold py-4 rounded-xl transition-all">Match berechnen & speichern 🍻</button></div>`;
             },
 
             renderSettings(container) {
@@ -512,7 +523,7 @@
                         await sbClient.from('history').delete().neq('match_id', 0);
                         location.reload();
                     } catch (e) {
-                        alert("Reset fehlgeschlagen: " + e.message);
+                        console.error(e);
                     }
                 }
             },
@@ -520,16 +531,18 @@
             exportCSV() {
                 let csv = "RANG,NAME,ELO,SPIELE,SIEGE\n";
                 [...this.data.players].sort((a,b) => b.elo - a.elo).forEach((p, i) => {
-                    csv += `${i+1},${p.name},${Math.round(p.elo)},${p.matches},${p.wins}\n`;
+                    csv += `${i+1},"${p.name}",${Math.round(p.elo)},${p.matches},${p.wins}\n`;
                 });
                 csv += "\nMATCH HISTORY\nID,DATUM,MATCH-NAME,MODUS,PLATZIERUNG...\n";
                 this.data.history.forEach(m => {
                     const names = m.ranking.map(rid => this.data.players.find(p => p.id === rid)?.name).join(", ");
                     csv += `${m.match_id},${m.date},"${m.match_name || ''}",${m.mode === 1 ? 'WinnerOnly' : 'Ranked'},"${names}"\n`;
                 });
+                
+                const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
                 const link = document.createElement("a");
-                link.href = "data:text/csv;charset=utf-8," + encodeURI(csv);
-                link.download = "SaufiSaufi_Export.csv";
+                link.href = URL.createObjectURL(blob);
+                link.download = `SaufiSaufi_Export_${new Date().toLocaleDateString()}.csv`;
                 link.click();
             },
 
@@ -544,9 +557,7 @@
             }
         };
 
-        app.init();
+        window.onload = () => app.init();
     </script>
 </body>
 </html>
-
-
